@@ -42,10 +42,21 @@ object QueueExecutionContext {
     }
   }
 
-  private final class SingleThreadedExecutionContext extends ExecutionContextExecutor {
+  final class SingleThreadedExecutionContext extends ExecutionContextExecutor {
     private val tasks = mutable.ListBuffer.empty[Runnable]
 
     private var running: Boolean = false
+
+    def loop(): Unit = {
+      while (tasks.nonEmpty) {
+        val task = tasks.remove(0)
+        try {
+          task.run()
+        } catch {
+          case t: Throwable => reportFailure(t)
+        }
+      }
+    }
 
     def execute(runnable: Runnable): Unit = {
       tasks += runnable
@@ -53,14 +64,7 @@ object QueueExecutionContext {
       if (!running) {
         running = true
         try {
-          while (tasks.nonEmpty) {
-            val task = tasks.remove(0)
-            try {
-              task.run()
-            } catch {
-              case t: Throwable => reportFailure(t)
-            }
-          }
+          loop()
         } finally {
           running = false
         }
